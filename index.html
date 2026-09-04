@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Student Game Entry Scanner</title>
+
+  <script src="https://unpkg.com/@zxing/browser@0.2.1/umd/zxing-browser.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f2f2;
+      margin: 0;
+      padding: 15px;
+      text-align: center;
+    }
+
+    .box {
+      max-width: 500px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 18px;
+      box-shadow: 0 3px 12px rgba(0,0,0,.15);
+    }
+
+    h1 {
+      font-size: 25px;
+      margin: 5px 0 10px;
+    }
+
+    #video {
+      width: 100%;
+      border-radius: 14px;
+      background: black;
+      margin-top: 10px;
+    }
+
+    button {
+      width: 90%;
+      padding: 15px;
+      margin-top: 15px;
+      font-size: 20px;
+      border: 0;
+      border-radius: 10px;
+      background: #222;
+      color: white;
+    }
+
+    #status {
+      margin-top: 20px;
+      padding: 18px;
+      border-radius: 12px;
+      font-size: 21px;
+      font-weight: bold;
+      background: #eee;
+    }
+
+    .good {
+      background: #d9ead3 !important;
+      color: #006100;
+    }
+
+    .bad {
+      background: #f4cccc !important;
+      color: #9c0006;
+    }
+
+    .details {
+      font-size: 18px;
+      font-weight: normal;
+      line-height: 1.5;
+      margin-top: 8px;
+    }
+
+    #manual {
+      margin-top: 25px;
+      padding-top: 15px;
+      border-top: 1px solid #ddd;
+    }
+
+    input {
+      width: 85%;
+      box-sizing: border-box;
+      padding: 12px;
+      font-size: 22px;
+      text-align: center;
+      border-radius: 10px;
+      border: 2px solid #777;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="box">
+
+  <h1>STUDENT GAME ENTRY</h1>
+
+  <div>BC vs Noble</div>
+
+  <video id="video" autoplay playsinline></video>
+
+  <button onclick="startScanner()">
+    📷 START SCANNER
+  </button>
+
+  <div id="status">
+    READY TO SCAN
+    <div class="details">
+      Point the camera at the student's barcode.
+    </div>
+  </div>
+
+  <div id="manual">
+    <div class="details">Manual entry if needed</div>
+
+    <input
+      id="manualId"
+      type="text"
+      inputmode="numeric"
+      placeholder="Student ID"
+    >
+
+    <button onclick="sendId()">
+      ENTER ID
+    </button>
+  </div>
+
+</div>
+
+<script>
+
+const APPS_SCRIPT_URL =
+  "https://script.google.com/macros/s/YOUR_LONG_ID/exec";;
+
+let reader = null;
+let controls = null;
+let busy = false;
+
+
+function startScanner() {
+
+  const status = document.getElementById("status");
+
+  status.className = "";
+  status.innerHTML =
+    "📷 STARTING CAMERA..." +
+    '<div class="details">Allow camera access if asked.</div>';
+
+  try {
+
+    if (typeof ZXingBrowser === "undefined") {
+      throw new Error("Barcode scanner library failed to load.");
+    }
+
+    reader =
+      new ZXingBrowser.BrowserMultiFormatReader();
+
+    reader
+      .decodeFromVideoDevice(
+        undefined,
+        "video",
+        function(result, error) {
+
+          if (result && !busy) {
+
+            busy = true;
+
+            const id =
+              result.getText().trim();
+
+            stopScanner();
+
+            sendToGoogle(id);
+          }
+
+        }
+      )
+      .then(function(newControls) {
+
+        controls = newControls;
+
+        status.innerHTML =
+          "📷 SCANNING..." +
+          '<div class="details">Point the camera at the barcode.</div>';
+
+      })
+      .catch(function(error) {
+
+        status.className = "bad";
+
+        status.innerHTML =
+          "CAMERA ERROR" +
+          '<div class="details">' +
+          "Safari could not start the camera. " +
+          "Make sure camera permission is allowed." +
+          "</div>";
+
+        console.log(error);
+
+      });
+
+  } catch (error) {
+
+    status.className = "bad";
+
+    status.innerHTML =
+      "SCANNER ERROR" +
+      '<div class="details">' +
+      escapeHtml(error.message) +
+      "</div>";
+
+  }
+}
+
+
+function stopScanner() {
+
+  if (controls) {
+
+    try {
+      controls.stop();
+    } catch(e) {}
+
+  }
+
+  controls = null;
+
+}
+
+
+function sendToGoogle(id) {
+
+  const status =
+    document.getElementById("status");
+
+  status.className = "";
+
+  status.innerHTML =
+    "CHECKING..." +
+    '<div class="details">Badge ' +
+    escapeHtml(id) +
+    "</div>";
+
+
+  /*
+    We send the barcode to the Apps Script
+    web app as a GET request.
+  */
+
+  fetch(
+    APPS_SCRIPT_URL +
+    "?scan=" +
+    encodeURIComponent(id)
+  )
+
+  .then(function(response) {
+    return response.json();
+  })
+
+  .then(function(result) {
+
+    showResult(result);
+
+  })
+
+  .catch(function(error) {
+
+    status.className = "bad";
+
+    status.innerHTML =
+      "CONNECTION ERROR" +
+      '<div class="details">' +
+      escapeHtml(error.message) +
+      "</div>";
+
+    busy = false;
+
+  });
+
+}
+
+
+function sendId() {
+
+  const input =
+    document.getElementById("manualId");
+
+  const id =
+    input.value.trim();
+
+  if (!id) return;
+
+  input.value = "";
+
+  busy = true;
+
+  sendToGoogle(id);
+
+}
+
+
+function showResult(result) {
+
+  const status =
+    document.getElementById("status");
+
+
+  if (result.status === "ADMITTED") {
+
+    status.className = "good";
+
+    status.innerHTML =
+      "✅ ENTRY RECORDED" +
+      '<div class="details">' +
+      "<strong>" +
+      escapeHtml(result.name) +
+      "</strong><br>" +
+      "Grade " +
+      escapeHtml(result.grade) +
+      "<br>" +
+      escapeHtml(result.time) +
+      "</div>";
+
+  }
+
+  else if (result.status === "DUPLICATE") {
+
+    status.className = "bad";
+
+    status.innerHTML =
+      "⚠️ ALREADY SCANNED" +
+      '<div class="details">' +
+      "<strong>" +
+      escapeHtml(result.name) +
+      "</strong><br>" +
+      "Grade " +
+      escapeHtml(result.grade) +
+      "<br>" +
+      escapeHtml(result.time) +
+      "</div>";
+
+  }
+
+  else if (result.status === "NOT_FOUND") {
+
+    status.className = "bad";
+
+    status.innerHTML =
+      "⛔ BADGE NOT FOUND" +
+      '<div class="details">' +
+      escapeHtml(result.name) +
+      "</div>";
+
+  }
+
+  else {
+
+    status.className = "bad";
+
+    status.innerHTML =
+      "ERROR" +
+      '<div class="details">' +
+      escapeHtml(result.message) +
+      "</div>";
+
+  }
+
+  busy = false;
+
+}
+
+
+function escapeHtml(value) {
+
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+}
+
+</script>
+
+</body>
+</html>
