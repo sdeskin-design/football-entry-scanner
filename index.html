@@ -134,13 +134,12 @@
 const APPS_SCRIPT_URL =
   "https://script.google.com/a/macros/bridgecreek.k12.ok.us/s/AKfycbxMy4JcbqBj36xGcmvzD6oOQzTFqQHMz-FSacr143mlxMsg6uyCGSkuzNlZ5tP0lKBs/exec";
 
-
 let reader = null;
 let controls = null;
 let busy = false;
 
 
-/* START CAMERA */
+/* START SCANNER */
 
 function startScanner() {
 
@@ -170,61 +169,23 @@ function startScanner() {
   }
 
 
-  navigator.mediaDevices
-    .getUserMedia({
-      video: {
-        facingMode: {
-          ideal: "environment"
-        }
-      },
-      audio: false
-    })
-
-    .then(function(stream) {
-
-      const video =
-        document.getElementById("video");
-
-      video.srcObject = stream;
-
-      video.play();
-
-      startBarcodeReader();
-
-    })
-
-    .catch(function(error) {
-
-      status.className = "bad";
-
-      status.innerHTML =
-        "CAMERA ERROR" +
-        '<div class="details">' +
-        "Safari could not start the camera.<br><br>" +
-        "Camera permission must be set to Allow for this website." +
-        "</div>";
-
-      console.log(error);
-
-    });
-}
-
-
-/* START BARCODE READER */
-
-function startBarcodeReader() {
-
-  const status =
-    document.getElementById("status");
-
-
   reader =
     new ZXingBrowser.BrowserMultiFormatReader();
 
 
+  const constraints = {
+    video: {
+      facingMode: {
+        ideal: "environment"
+      }
+    },
+    audio: false
+  };
+
+
   reader
-    .decodeFromVideoDevice(
-      undefined,
+    .decodeFromConstraints(
+      constraints,
       "video",
       function(result, error) {
 
@@ -262,7 +223,7 @@ function startBarcodeReader() {
       status.className = "bad";
 
       status.innerHTML =
-        "SCANNER ERROR" +
+        "CAMERA ERROR" +
         '<div class="details">' +
         escapeHtml(error.message) +
         "</div>";
@@ -286,21 +247,6 @@ function stopScanner() {
   }
 
   controls = null;
-
-
-  const video =
-    document.getElementById("video");
-
-  if (video.srcObject) {
-
-    video.srcObject
-      .getTracks()
-      .forEach(function(track) {
-        track.stop();
-      });
-
-    video.srcObject = null;
-  }
 }
 
 
@@ -310,7 +256,6 @@ function sendToGoogle(id) {
 
   const status =
     document.getElementById("status");
-
 
   status.className = "";
 
@@ -448,7 +393,6 @@ function showResult(result) {
       "</div>";
 
   }
-
 
   busy = false;
 }
