@@ -134,6 +134,8 @@
 const APPS_SCRIPT_URL =
   "https://script.google.com/a/macros/bridgecreek.k12.ok.us/s/AKfycbxMy4JcbqBj36xGcmvzD6oOQzTFqQHMz-FSacr143mlxMsg6uyCGSkuzNlZ5tP0lKBs/exec";
 
+const SCANNER_KEY = "BCFOOTBALL2026";
+
 let reader = null;
 let controls = null;
 let busy = false;
@@ -270,7 +272,9 @@ function sendToGoogle(id) {
   fetch(
     APPS_SCRIPT_URL +
     "?scan=" +
-    encodeURIComponent(id)
+    encodeURIComponent(id) +
+    "&key=" +
+    encodeURIComponent(SCANNER_KEY)
   )
 
   .then(function(response) {
