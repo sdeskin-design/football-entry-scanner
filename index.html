@@ -132,88 +132,148 @@
 <script>
 
 const APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/YOUR_LONG_ID/exec";;
+  "https://script.google.com/a/macros/bridgecreek.k12.ok.us/s/AKfycbxMy4JcbqBj36xGcmvzD6oOQzTFqQHMz-FSacr143mlxMsg6uyCGSkuzNlZ5tP0lKBs/exec";
+
 
 let reader = null;
 let controls = null;
 let busy = false;
 
 
+/* START CAMERA */
+
 function startScanner() {
 
-  const status = document.getElementById("status");
+  const status =
+    document.getElementById("status");
 
   status.className = "";
+
   status.innerHTML =
     "📷 STARTING CAMERA..." +
-    '<div class="details">Allow camera access if asked.</div>';
+    '<div class="details">' +
+    "Allow camera access if asked." +
+    "</div>";
 
-  try {
 
-    if (typeof ZXingBrowser === "undefined") {
-      throw new Error("Barcode scanner library failed to load.");
-    }
-
-    reader =
-      new ZXingBrowser.BrowserMultiFormatReader();
-
-    reader
-      .decodeFromVideoDevice(
-        undefined,
-        "video",
-        function(result, error) {
-
-          if (result && !busy) {
-
-            busy = true;
-
-            const id =
-              result.getText().trim();
-
-            stopScanner();
-
-            sendToGoogle(id);
-          }
-
-        }
-      )
-      .then(function(newControls) {
-
-        controls = newControls;
-
-        status.innerHTML =
-          "📷 SCANNING..." +
-          '<div class="details">Point the camera at the barcode.</div>';
-
-      })
-      .catch(function(error) {
-
-        status.className = "bad";
-
-        status.innerHTML =
-          "CAMERA ERROR" +
-          '<div class="details">' +
-          "Safari could not start the camera. " +
-          "Make sure camera permission is allowed." +
-          "</div>";
-
-        console.log(error);
-
-      });
-
-  } catch (error) {
+  if (typeof ZXingBrowser === "undefined") {
 
     status.className = "bad";
 
     status.innerHTML =
       "SCANNER ERROR" +
       '<div class="details">' +
-      escapeHtml(error.message) +
+      "Barcode scanner library did not load." +
       "</div>";
 
+    return;
   }
+
+
+  navigator.mediaDevices
+    .getUserMedia({
+      video: {
+        facingMode: {
+          ideal: "environment"
+        }
+      },
+      audio: false
+    })
+
+    .then(function(stream) {
+
+      const video =
+        document.getElementById("video");
+
+      video.srcObject = stream;
+
+      video.play();
+
+      startBarcodeReader();
+
+    })
+
+    .catch(function(error) {
+
+      status.className = "bad";
+
+      status.innerHTML =
+        "CAMERA ERROR" +
+        '<div class="details">' +
+        "Safari could not start the camera.<br><br>" +
+        "Camera permission must be set to Allow for this website." +
+        "</div>";
+
+      console.log(error);
+
+    });
 }
 
+
+/* START BARCODE READER */
+
+function startBarcodeReader() {
+
+  const status =
+    document.getElementById("status");
+
+
+  reader =
+    new ZXingBrowser.BrowserMultiFormatReader();
+
+
+  reader
+    .decodeFromVideoDevice(
+      undefined,
+      "video",
+      function(result, error) {
+
+        if (result && !busy) {
+
+          busy = true;
+
+          const id =
+            result.getText().trim();
+
+          stopScanner();
+
+          sendToGoogle(id);
+        }
+
+      }
+    )
+
+    .then(function(newControls) {
+
+      controls = newControls;
+
+      status.className = "";
+
+      status.innerHTML =
+        "📷 SCANNING..." +
+        '<div class="details">' +
+        "Point the camera at the student's barcode." +
+        "</div>";
+
+    })
+
+    .catch(function(error) {
+
+      status.className = "bad";
+
+      status.innerHTML =
+        "SCANNER ERROR" +
+        '<div class="details">' +
+        escapeHtml(error.message) +
+        "</div>";
+
+      console.log(error);
+
+    });
+}
+
+
+/* STOP CAMERA */
 
 function stopScanner() {
 
@@ -227,27 +287,40 @@ function stopScanner() {
 
   controls = null;
 
+
+  const video =
+    document.getElementById("video");
+
+  if (video.srcObject) {
+
+    video.srcObject
+      .getTracks()
+      .forEach(function(track) {
+        track.stop();
+      });
+
+    video.srcObject = null;
+  }
 }
 
+
+/* SEND ID TO GOOGLE */
 
 function sendToGoogle(id) {
 
   const status =
     document.getElementById("status");
 
+
   status.className = "";
 
   status.innerHTML =
     "CHECKING..." +
-    '<div class="details">Badge ' +
+    '<div class="details">' +
+    "Badge " +
     escapeHtml(id) +
     "</div>";
 
-
-  /*
-    We send the barcode to the Apps Script
-    web app as a GET request.
-  */
 
   fetch(
     APPS_SCRIPT_URL +
@@ -256,7 +329,9 @@ function sendToGoogle(id) {
   )
 
   .then(function(response) {
+
     return response.json();
+
   })
 
   .then(function(result) {
@@ -278,9 +353,10 @@ function sendToGoogle(id) {
     busy = false;
 
   });
-
 }
 
+
+/* MANUAL ENTRY */
 
 function sendId() {
 
@@ -290,16 +366,19 @@ function sendId() {
   const id =
     input.value.trim();
 
-  if (!id) return;
+  if (!id) {
+    return;
+  }
 
   input.value = "";
 
   busy = true;
 
   sendToGoogle(id);
-
 }
 
+
+/* SHOW RESULT */
 
 function showResult(result) {
 
@@ -325,6 +404,7 @@ function showResult(result) {
 
   }
 
+
   else if (result.status === "DUPLICATE") {
 
     status.className = "bad";
@@ -343,6 +423,7 @@ function showResult(result) {
 
   }
 
+
   else if (result.status === "NOT_FOUND") {
 
     status.className = "bad";
@@ -354,6 +435,7 @@ function showResult(result) {
       "</div>";
 
   }
+
 
   else {
 
@@ -367,10 +449,12 @@ function showResult(result) {
 
   }
 
-  busy = false;
 
+  busy = false;
 }
 
+
+/* PROTECT DISPLAYED TEXT */
 
 function escapeHtml(value) {
 
